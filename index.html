@@ -1843,6 +1843,17 @@ function moatWallGeo(r,out,yTop,yBot,bat,tile){ const N=12,pos=[],uv=[],idx=[],s
       pos.push(A[0],y,A[1],Bc[0],y,Bc[1]); uv.push(0,(yTop-y)/tile,L/tile,(yTop-y)/tile); }
     for(let i=0;i<N;i++){ const a=base+i*2,b=a+1,c=a+2,d=a+3; idx.push(a,c,b,b,c,d); } }
   return geoFrom(pos,uv,idx); }
+/* 天守台の石垣に入口の穴をあける版（お城さんぽ共通仕様: 入口から奥の通路が見えるように）。door={side:3(西面),z0,z1,y0,y1} */
+function moatWallDoorGeo(r,out,yTop,yBot,bat,tile,door){ const N=12,pos=[],uv=[],sg=out?1:-1;
+  const corners=o=>[[r.x0-sg*o,r.z0-sg*o],[r.x1+sg*o,r.z0-sg*o],[r.x1+sg*o,r.z1+sg*o],[r.x0-sg*o,r.z1+sg*o]];
+  const ts=[...new Set([...Array(N+1).keys()].map(i=>i/N).concat([(yTop-door.y1)/(yTop-yBot),(yTop-door.y0)/(yTop-yBot)]).map(t=>+Math.min(1,Math.max(0,t)).toFixed(5)))].sort((a,b)=>a-b);
+  const row=(k,t)=>{ const o=bat*Math.pow(t,1.5),y=yTop+(yBot-yTop)*t,c=corners(o); return {A:c[k],B:c[(k+1)%4],y}; };
+  for(let k=0;k<4;k++) for(let i=0;i<ts.length-1;i++){ const R0=row(k,ts[i]),R1=row(k,ts[i+1]),L=Math.hypot(R0.B[0]-R0.A[0],R0.B[1]-R0.A[1]);
+    const ym=(R0.y+R1.y)/2,cut=k===door.side&&ym<door.y1&&ym>door.y0;
+    let segs=[[0,1]]; if(cut){ const sf=R=>{ const dz=R.B[1]-R.A[1]; return [(door.z1-R.A[1])/dz,(door.z0-R.A[1])/dz].sort((a,b)=>a-b); }; const [a,b]=sf(R0); segs=[[0,a],[b,1]]; }
+    for(const [s0,s1] of segs){ const P=(R,s)=>[R.A[0]+(R.B[0]-R.A[0])*s,R.y,R.A[1]+(R.B[1]-R.A[1])*s],U=s=>s*L/tile,V=R=>(yTop-R.y)/tile;
+      const a=P(R0,s0),b=P(R0,s1),c=P(R1,s0),d=P(R1,s1); pos.push(...a,...c,...b,...b,...c,...d); uv.push(U(s0),V(R0),U(s0),V(R1),U(s1),V(R0),U(s1),V(R0),U(s0),V(R1),U(s1),V(R1)); } }
+  return geoFrom(pos,uv); }
 function sangiCorners(r,yTop,yBot,bat,mat){ const bt=new Batch(),hs=1.25; let k=0;
   for(let y=yTop-.05;y>yBot+.6;y-=hs,k++){ const t=(yTop-(y-hs/2))/(yTop-yBot),o=bat*Math.pow(t,1.5),yc=y-hs/2;
     for(const [sx,sz] of [[-1,-1],[1,-1],[1,1],[-1,1]]){ const cx=(sx>0?r.x1:r.x0)+sx*o,cz=(sz>0?r.z1:r.z0)+sz*o,alt=(k+(sx*sz>0?0:1))%2===0,Lg=2.6+((k*7+sx*3+sz)%3)*.35;
@@ -1985,13 +1996,13 @@ function dormer(T,lv,side,kind,W,H,off,mats){ const r=T.info[lv]; if(!r||r.top) 
   if(kind==='c') chidori(T.g,x,yy,z,ry-Math.PI/2,W,H,mats); else karahafu(T.g,x,yy-.45,z,ry,W,mats);
   (T.dorm=T.dorm||[]).push({lv,side,kind,W,H:kind==='c'?H:2.6,off,out:(side==='s'||side==='n')?mb:ma,yy,ey:r.ey,rise:r.rise}); }
 /* 天守台・小天守台の石垣 */
-function keepBase(cx,cz,w,d,yTop,yBot,bat){ const r={x0:cx-w/2-.5,x1:cx+w/2+.5,z0:cz-d/2-.5,z1:cz+d/2+.5};
-  eraWall(mesh(moatWallGeo(r,true,yTop,yBot,bat,5.5),wallK,false,true),'wallK'); const c=sangiCorners(r,yTop,yBot,bat); c.receiveShadow=true; eraWall(c,'corner');
+function keepBase(cx,cz,w,d,yTop,yBot,bat,door){ const r={x0:cx-w/2-.5,x1:cx+w/2+.5,z0:cz-d/2-.5,z1:cz+d/2+.5};
+  eraWall(mesh(door?moatWallDoorGeo(r,true,yTop,yBot,bat,5.5,door):moatWallGeo(r,true,yTop,yBot,bat,5.5),wallK,false,true),'wallK'); const c=sangiCorners(r,yTop,yBot,bat); c.receiveShadow=true; eraWall(c,'corner');
   const cap=mesh(boxUVGeo(r.x1-r.x0,.3,r.z1-r.z0,3,3),M.stoneK,false,true); cap.position.set(cx,yTop-.5,cz); SH.add(cap); return r; }
 
 /* ---------- 大天守: 外観5重・内部6階・地下1階。石垣14.85m＋建物31.5m（このアプリでは天守台の上から約31m） ---------- */
 const KEEP={cx:12,cz:-168,w:24,d:19,g0:43,y1:46};
-keepBase(KEEP.cx,KEEP.cz,KEEP.w,KEEP.d,KEEP.y1,30,3.6);
+keepBase(KEEP.cx,KEEP.cz,KEEP.w,KEEP.d,KEEP.y1,30,3.6,{side:3,z0:KEEP.cz-5.2,z1:KEEP.cz-2.8,y0:KEEP.g0-.1,y1:KEEP.g0+2.85}); /* 西面の地階（穴蔵）の入口をあける */
 /* 壁は外観ではなく、内部と一緒に本当の窓の開口をあけて作る（open） */
 const KL=[{w:24,d:19,h:5.6,slope:.5,open:true},{w:21.6,d:16.8,h:5,slope:.55,open:true},{w:19,d:14.4,h:9,slope:.55,open:true},{w:15.4,d:11.4,h:4.4,slope:.5,open:true},{w:13.4,d:9.6,h:4.6,open:true}];
 const KT=tenshuExt(SH,KEEP.cx,KEEP.y1,KEEP.cz,KL,HM); KEEP.T=KT;
@@ -2251,6 +2262,21 @@ for(const k of ['hIn','keepFloor','pillar']){ BKEYS.push(k); for(const S of [BS,
 B=BS;
 const MOYA_R=.15; /* 身舎（もや）の床は、外周の武者走りより一段高い */
 const FLOORN=['地階（穴蔵）','1階','2階','3階','4階','5階','6階（最上階）'];
+/* 階段の吹き抜け（お城さんぽ共通仕様）: 床と天井の穴を階段より左右に広くあけ、上の階には手すりを回す。
+   下から見上げたとき上の階の床・柱・窓が見え、行き先が塞がって見えないようにする */
+const WELL=.65,WELL_B=1.1;
+function wellR(s){ if(!s) return null; const d=Math.sign(s.to-s.from),r={x0:s.x0-WELL,x1:s.x1+WELL,z0:s.z0,z1:s.z1}; if(d>0) r.z0-=WELL_B; else r.z1+=WELL_B; return r; }
+function stairWell(F,s,mat){ const y=F.y,d=Math.sign(s.to-s.from),w=wellR(s),zb=s.from-d*WELL_B,zm=(w.z0+w.z1)/2,L=w.z1-w.z0,xa=w.x0,xb=w.x1;
+  coll(F,xa-.05,s.x0,w.z0,w.z1); coll(F,s.x1,xb+.05,w.z0,w.z1); coll(F,xa-.05,xb+.05,Math.min(zb,s.from)-.12,Math.max(zb,s.from)+.0);
+  for(const x of [xa,xb]){ B[mat].add(new THREE.BoxGeometry(.1,.1,L),TM(x,y+.9,zm)); B[mat].add(new THREE.BoxGeometry(.08,.08,L),TM(x,y+.45,zm)); for(const z of [w.z0,zm,w.z1]) B[mat].add(new THREE.BoxGeometry(.12,.95,.12),TM(x,y+.47,z)); }
+  B[mat].add(new THREE.BoxGeometry(xb-xa,.1,.1),TM((xa+xb)/2,y+.9,zb)); B[mat].add(new THREE.BoxGeometry(xb-xa,.08,.08),TM((xa+xb)/2,y+.45,zb));
+  /* 穴の縁の框（床の厚みを見せて、穴だと分かるように） */
+  for(const x of [xa,xb]) B.darkwood.add(new THREE.BoxGeometry(.08,.34,L),TM(x,y-.17,zm)); B.darkwood.add(new THREE.BoxGeometry(xb-xa,.34,.08),TM((xa+xb)/2,y-.17,zb)); }
+/* 箱（梁など）が階段の吹き抜けにかかるときは、吹き抜けの所だけ切って左右（前後）に分ける */
+function cutBox(bt,[w,h,d],[x,y,z],holes){ let parts=[{x0:x-w/2,x1:x+w/2,z0:z-d/2,z1:z+d/2}];
+  for(const r of holes){ parts=parts.flatMap(p=>{ if(p.x1<=r.x0||p.x0>=r.x1||p.z1<=r.z0||p.z0>=r.z1) return [p];
+    return (p.x1-p.x0>=p.z1-p.z0)?[{...p,x1:r.x0},{...p,x0:r.x1}]:[{...p,z1:r.z0},{...p,z0:r.z1}]; }).filter(p=>p.x1-p.x0>.15&&p.z1-p.z0>.15); }
+  for(const p of parts) bt.add(new THREE.BoxGeometry(p.x1-p.x0,h,p.z1-p.z0),TM((p.x0+p.x1)/2,y,(p.z0+p.z1)/2)); }
 function planHimeji(){ const cx=KEEP.cx,cz=KEEP.cz,FL=[],ST=[];
   FL.push({y:KEEP.g0,h:KEEP.y1-KEEP.g0,w:21.4,d:16.6,rects:[{x0:cx-10.6,x1:cx+10.6,z0:cz-8.2,z1:cz+8.2},{x0:KEEP.cx-KEEP.w/2-1.3,x1:cx-10.4,z0:cz-5.2,z1:cz-2.8}],pillars:[],name:FLOORN[0],base:true});
   const ys=[]; let y=KEEP.y1; KL.forEach((L,i)=>{ ys.push(y); y+=L.h; });
@@ -2275,18 +2301,19 @@ function bxF(F,bt,w,h,d,x,y,z,ry,solid){ B[bt].add(new THREE.BoxGeometry(w,h,d),
       B.lampIn.add(new THREE.BoxGeometry(.3,.4,.3),TM(cx-10.3,F.y+2,cz+3)); B.lampIn.add(new THREE.BoxGeometry(.3,.4,.3),TM(cx+10.3,F.y+2,cz-3));
       F.rects[0]={x0:cx-10.4,x1:cx+10.4,z0:cz-8,z1:cz+8}; return; }
     const fp={x0:cx-F.w/2,x1:cx+F.w/2,z0:cz-F.d/2,z1:cz+F.d/2}; F.rects=[{x0:fp.x0+.75,x1:fp.x1-.75,z0:fp.z0+.75,z1:fp.z1-.75}];
-    slab(B.keepFloor,fp,clipR(fp,TEN.ST[i-1]),F.y,.25); slab(B.darkwood,fp,last?null:clipR(fp,TEN.ST[i]),F.y+F.h-(last?0:.25),.2);
+    slab(B.keepFloor,fp,clipR(fp,wellR(TEN.ST[i-1])),F.y,.25); slab(B.darkwood,fp,last?null:clipR(fp,wellR(TEN.ST[i])),F.y+F.h-(last?0:.25),.2);
+    if(TEN.ST[i-1]) stairWell(F,TEN.ST[i-1],'darkwood'); const HW=[wellR(TEN.ST[i])].filter(Boolean);
     const H=F.h-.25,a=F.w/2-.3,b=F.d/2-.3;
     /* 柱: 外周の武者走りと内側の身舎（もや）を分ける柱列 */ const pa=F.w/2-2.6,pb=F.d/2-2.6,nx=Math.max(2,Math.round(2*pa/3.4)),nz=Math.max(2,Math.round(2*pb/3.4)),pts=[];
     for(let k=0;k<=nx;k++){ const x=cx-pa+k*2*pa/nx; pts.push([x,cz-pb],[x,cz+pb]); } for(let k=1;k<nz;k++){ const z=cz-pb+k*2*pb/nz; pts.push([cx-pa,z],[cx+pa,z]); }
     for(const [x,z] of pts){ if([TEN.ST[i],TEN.ST[i-1]].some(s=>s&&inR(s,x,z,1.3))) continue; B.pillar.add(new THREE.BoxGeometry(.42,H,.42),TM(x,F.y+H/2,z)); F.pillars.push([x,z]); }
-    /* 身舎の床（一段高い）と框 */ F.moya={x0:cx-pa,x1:cx+pa,z0:cz-pb,z1:cz+pb}; slab(B.keepFloor,F.moya,clipR(F.moya,TEN.ST[i-1]),F.y+MOYA_R,MOYA_R+.02);
+    /* 身舎の床（一段高い）と框 */ F.moya={x0:cx-pa,x1:cx+pa,z0:cz-pb,z1:cz+pb}; slab(B.keepFloor,F.moya,clipR(F.moya,wellR(TEN.ST[i-1])),F.y+MOYA_R,MOYA_R+.02);
     for(const z of [cz-pb,cz+pb]) B.darkwood.add(new THREE.BoxGeometry(2*pa+.1,MOYA_R+.03,.14),TM(cx,F.y+MOYA_R/2,z)); for(const x of [cx-pa,cx+pa]) B.darkwood.add(new THREE.BoxGeometry(.14,MOYA_R+.03,2*pb+.1),TM(x,F.y+MOYA_R/2,cz));
     /* 梁: 身舎の上は縦横に太い梁、武者走りは柱から外壁へ繋ぎ梁 */ const by=F.y+H-.32;
-    for(let k=0;k<=nx;k++){ const x=cx-pa+k*2*pa/nx; B.darkwood.add(new THREE.BoxGeometry(.38,.5,2*pb+.4),TM(x,by,cz)); } for(let k=0;k<=nz;k++){ const z=cz-pb+k*2*pb/nz; B.darkwood.add(new THREE.BoxGeometry(2*pa+.4,.42,.34),TM(cx,by-.46,z)); }
-    for(let k=0;k<=nx;k++){ const x=cx-pa+k*2*pa/nx; for(const sg of [-1,1]){ const L=b-pb; B.darkwood.add(new THREE.BoxGeometry(.3,.4,L),TM(x,by-.05,cz+sg*(pb+L/2))); } }
-    for(let k=0;k<=nz;k++){ const z=cz-pb+k*2*pb/nz; for(const sg of [-1,1]){ const L=a-pa; B.darkwood.add(new THREE.BoxGeometry(L,.4,.3),TM(cx+sg*(pa+L/2),by-.05,z)); } }
-    for(const sg of [-1,1]){ B.darkwood.add(new THREE.BoxGeometry(2*a,.28,.26),TM(cx,by+.1,cz+sg*(b-.12))); B.darkwood.add(new THREE.BoxGeometry(.26,.28,2*b),TM(cx+sg*(a-.12),by+.1,cz)); }
+    for(let k=0;k<=nx;k++){ const x=cx-pa+k*2*pa/nx; cutBox(B.darkwood,[.38,.5,2*pb+.4],[x,by,cz],HW); } for(let k=0;k<=nz;k++){ const z=cz-pb+k*2*pb/nz; cutBox(B.darkwood,[2*pa+.4,.42,.34],[cx,by-.46,z],HW); }
+    for(let k=0;k<=nx;k++){ const x=cx-pa+k*2*pa/nx; for(const sg of [-1,1]){ const L=b-pb; cutBox(B.darkwood,[.3,.4,L],[x,by-.05,cz+sg*(pb+L/2)],HW); } }
+    for(let k=0;k<=nz;k++){ const z=cz-pb+k*2*pb/nz; for(const sg of [-1,1]){ const L=a-pa; cutBox(B.darkwood,[L,.4,.3],[cx+sg*(pa+L/2),by-.05,z],HW); } }
+    for(const sg of [-1,1]){ cutBox(B.darkwood,[2*a,.28,.26],[cx,by+.1,cz+sg*(b-.12)],HW); cutBox(B.darkwood,[.26,.28,2*b],[cx+sg*(a-.12),by+.1,cz],HW); }
     
     B.lampIn.add(new THREE.BoxGeometry(.3,.42,.3),TM(cx-a+.3,F.y+2.1,cz)); B.lampIn.add(new THREE.BoxGeometry(.3,.42,.3),TM(cx+a-.3,F.y+2.1,cz));
     
@@ -2786,7 +2813,10 @@ function updatePlayer(dt){ let ix=0,iz=0; if(keys.KeyW||keys.ArrowUp) iz+=1; if(
   const nn=(P.level>=0||P.room)?.08:.25; if(camera.near!==nn){ camera.near=nn; camera.updateProjectionMatrix(); }
   const ty=drone?Math.max(60,groundH(P.x,P.z)+30):(P.room?P.room.y:P.level>=0?floorY(P.level,P.x,P.z):groundH(P.x,P.z))+1.6; P.y+=(ty-P.y)*Math.min(1,dt*(drone?1.6:10));
   let bob=0; if(!drone&&l>.1&&!reduceMotion){ P.bob+=dt*sp*2.1; bob=Math.sin(P.bob)*.035; }
-  camera.position.set(P.x,P.y+bob,P.z); camera.rotation.set(P.pitch,P.yaw,0); }
+  /* 階段では進む向きに合わせて目線を少し上下させ、行き先（上の階・下の階）が見えるようにする（お城さんぽ共通仕様） */
+  { let tg=0; if(!drone&&!P.room&&P.level>=0&&l>.1){ const st=stairAt(P.level,P.x,P.z); if(st){ const s=st.s,run=s.to-s.from,mv=fz*iz+rz*ix,up=Math.sign(mv)===Math.sign(run); tg=(up?.62:-.5)*Math.atan2(s.rise,Math.abs(run)); } }
+    P.sp=(P.sp||0)+(tg-(P.sp||0))*Math.min(1,dt*(tg?2.6:1.4)); }
+  camera.position.set(P.x,P.y+bob,P.z); camera.rotation.set(Math.max(-1.3,Math.min(1.3,P.pitch+P.sp)),P.yaw,0); }
 let orbit=0;
 function attract(dt){ orbit+=dt*(reduceMotion?.02:.05); const cx=KEEP.cx-6,cz=KEEP.cz-10; camera.position.set(cx+Math.sin(orbit+.35)*170,70,cz+Math.cos(orbit+.35)*170); camera.lookAt(cx,48,cz); }
 
