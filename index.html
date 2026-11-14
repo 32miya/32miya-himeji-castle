@@ -2829,6 +2829,9 @@ const SPOTS=[
   {id:'senba',name:'船場川',kana:'せんばがわ',at:[-528,200],pos:[-506,200],look:[-528,1,150],q:'Senba River Himeji',
    text:'城の西を流れる川。江戸時代には、城下と飾磨の港を結ぶ舟の道として整備されました。',meta:[['流れ','城の西'],['江戸時代','舟運の川']]}
 ];
+/* お城さんぽ共通（/oshiro/common/fuda.js の見どころ札・写真モード）へ、名所と自分の位置を知らせる窓口 */
+window.OshiroGame={ spots:()=>spotList(), all:()=>SPOTS, me:()=>({x:P.x,z:P.z,level:P.level,room:!!P.room,walk:P.mode==='walk',tour:typeof tour!=='undefined'&&!!tour.on}), started:()=>typeof started==='undefined'||!!started, warpAt:0 };
+{ const _tp=teleport; teleport=function(s){ window.OshiroGame.warpAt=performance.now(); return _tp.apply(this,arguments); }; }
 function spotList(){ return SPOTS.filter(s=>MODE==='edo'?!s.modernOnly:!s.edoOnly).map(s=>MODE==='edo'&&s.edo?Object.assign({},s,s.edo):s); }
 function areaAt(x,z){ const ed=MODE==='edo';
   for(const b of actB()) if(inR(b,x,z,.2)) return {sakuramon:ed?'桜門の橋':'桜門橋',uchiW:'内堀の橋（西）',uchiE:'内堀の橋（東）',nakaS:'中ノ門の橋',nakaW:'中堀の橋（西）',nakaE:'中堀の橋（東）',nakaN:'中堀の橋（北）',sotoS:'外京口の橋',sotoW:'外堀の橋',senba:'船場川の橋',senba2:'船場川の橋'}[b.id]||'橋';
@@ -3430,6 +3433,7 @@ window.__hj={P,M,ROOMS,TEN,walkable,groundH,canStep,walkFloor:(L,x,z)=>walkFloor
 })();
 </script>
 <script src="/oshiro/common/goshuin.js"></script>
+<script src="/oshiro/common/fuda.js"></script>
 <!-- oshiro-portal:end -->
 </body>
 </html>
